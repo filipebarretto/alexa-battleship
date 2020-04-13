@@ -4,73 +4,50 @@ import six
 import boto3
 import json
 import os
+from random import randrange
 
-dynamodb = boto3.resource('dynamodb')
-
-# BOARD SETTINGS
-BOARD_WIDTH, BOARD_HEIGHT = 10, 10
-CURRENT_GAMES_TABLE = "CURRENT_GAMES_TABLE"
-
-# BOARD SLOT CODES
-EMPTY_CODE = 0
-MISS_CODE = -1
-HIT_CODE = 1
-
-
-# SHIP CODES AND SIZES
-PIECES = {"patrol_boat": {"size": 2, "code": 10}, "battleship": {"size": 4, "code": 11}, "carrier": {"size": 5, "code": 12}, "destroyer": {"size": 3, "code": 13}, "submarine": {"size": 3, "code": 14}}
-
-
-# ILLEGAL MOVES AND PLACEMENT ERROR
-LEGAL_PLACEMENT = "Legal placement. "
-LEGAL_SQUARES = "Legal squares. "
-UNKNOWN_ERROR  = ("Unknown error. ")
-NOT_STRAIGHT = "Ship must be placed vertically or horiozntally. "
-SAME_START_AND_END = "Start and end square cannot be the same. "
-OUT_OF_BOARD_RANGE = "Placement out of board range. "
-WRONG_SIZE = "Wrong size. The piece you wish to place has size {piece_size}, while you placed in a distance of {distance} squares in the board!. "
-BOARD_SQUARE_CONFLICT = "There is already a piece in one of these squares.. "
+from custom_modules import data
 
 
 # CLEARS THE BOARD PLACING 0 IN EVERY POSITION TO START A NEW GAME
 def clear_board():
-    board = [[0 for x in range(BOARD_WIDTH)] for y in range(BOARD_HEIGHT)]
+    board = [[data.EMPTY_CODE for x in range(data.BOARD_WIDTH)] for y in range(data.BOARD_HEIGHT)]
     return board
 
 # VALIDATES IF THE POSITION WHERE A PIECE WISHES TO BE PLACED IS VALID
 def validate_position(piece, start, end):
     if start == end:
-        print(SAME_START_AND_END)
-        return {"is_legal": False, "msg": SAME_START_AND_END}
+        print(data.SAME_START_AND_END)
+        return {"is_legal": False, "msg": data.SAME_START_AND_END}
     elif start[0] > 9 or end[0] > 9 or start[1] > 9 or end[1] > 9:
-        print(OUT_OF_BOARD_RANGE)
-        return {"is_legal": False, "msg": OUT_OF_BOARD_RANGE}
+        print(data.OUT_OF_BOARD_RANGE)
+        return {"is_legal": False, "msg": data.OUT_OF_BOARD_RANGE}
     elif start[0] != end[0] and start[1] != end[1]:
-        print(NOT_STRAIGHT)
-        return {"is_legal": False, "msg": NOT_STRAIGHT}
+        print(data.NOT_STRAIGHT)
+        return {"is_legal": False, "msg": data.NOT_STRAIGHT}
     elif start[0] == end[0]:
         distance = abs(start[1] - end[1]) + 1
-        if distance != PIECES[piece]["size"]:
-            return {"is_legal": False, "msg": WRONG_SIZE.format(piece_size=PIECES[piece]["size"], distance=distance)}
+        if distance != data.PIECES[piece]["size"]:
+            return {"is_legal": False, "msg": data.WRONG_SIZE.format(piece_size=data.PIECES[piece]["size"], distance=distance)}
         else:
-            return {"is_legal": True, "msg": LEGAL_PLACEMENT}
+            return {"is_legal": True, "msg": data.LEGAL_PLACEMENT}
     elif start[1] == end[1]:
         distance = abs(start[0] - end[0]) + 1
-        if distance != PIECES[piece]["size"]:
-            return {"is_legal": False, "msg": WRONG_SIZE.format(piece_size=PIECES[piece]["size"], distance=distance)}
+        if distance != data.PIECES[piece]["size"]:
+            return {"is_legal": False, "msg": data.WRONG_SIZE.format(piece_size=data.PIECES[piece]["size"], distance=distance)}
         else:
-            return {"is_legal": True, "msg": LEGAL_PLACEMENT}
+            return {"is_legal": True, "msg": data.LEGAL_PLACEMENT}
     else:
-        return {"is_legal": False, "msg": UNKNOWN_ERROR}
+        return {"is_legal": False, "msg": data.UNKNOWN_ERROR}
 
-# VALIDATES IF THE SQUARES WHERE PIECES WISHES TO BE PLACED ARE EMPTY
+# VALIDATES IF THE SQUARES WHERE data.PIECES WISHES TO BE PLACED ARE EMPTY
 def validate_board_square(board, piece, start, end):
-    for x in range(start[1], end[1] + 1):
-        for y in range(start[0], end[0] + 1):
-            if board[x][y] != EMPTY_CODE:
-                return {"is_legal": False, "msg": BOARD_SQUARE_CONFLICT}
+    for x in range(start[0], end[0] + 1):
+        for y in range(start[1], end[1] + 1):
+            if board[x][y] != data.EMPTY_CODE:
+                return {"is_legal": False, "msg": data.BOARD_SQUARE_CONFLICT}
 
-    return {"is_legal": True, "msg": BOARD_SQUARE_CONFLICT}
+    return {"is_legal": True, "msg": data.BOARD_SQUARE_CONFLICT}
 
 
 # CHECKS IF IT IS POSSIBLE TO PLACE A PIECE IN A POSITION
@@ -81,7 +58,7 @@ def validate_placement(board, piece, start, end):
     if is_legal_position.get("is_legal", False):
         is_legal_square = validate_board_square(board, piece, start, end)
         if is_legal_square.get("is_legal", False):
-            return {"is_legal": True, "msg": LEGAL_PLACEMENT}
+            return {"is_legal": True, "msg": data.LEGAL_PLACEMENT}
         else:
             return is_legal_square
     else:
@@ -92,10 +69,10 @@ def validate_placement(board, piece, start, end):
 def place_piece(board, piece, start, end):
     is_valid_placement = validate_placement(board, piece, start, end)
     if is_valid_placement["is_legal"]:
-        for x in range(start[1], end[1] + 1):
-            for y in range(start[0], end[0] + 1):
-                board[x][y] = PIECES.get(piece).get("code")
-        return {"is_legal": True, "msg": LEGAL_PLACEMENT, "board": board}
+        for x in range(start[0], end[0] + 1):
+            for y in range(start[1], end[1] + 1):
+                board[x][y] = data.PIECES.get(piece).get("code")
+        return {"is_legal": True, "msg": data.LEGAL_PLACEMENT, "board": board}
 
     else:
         return {"is_legal": False, "msg": is_valid_placement["msg"], "board": board}
@@ -103,25 +80,83 @@ def place_piece(board, piece, start, end):
 
 # TRANSLATES THE SLOT CODE INTO A VECTOR
 def get_square(slot_code):
-    square = [ord(slot_code.split("_")[0]) - ord("A"), int(slot_code.split("_")[1])]
+    print("Getting square from slot code")
+    square = [ord(slot_code.split("_")[0]) - ord("A"), int(slot_code.split("_")[1]) - 1]
+    print("Square: " + str(square))
     return square
+
+def get_slot_code(square):
+    slot_code = data.ROWS[square[0]] + data.COLUMNS[square[1]]
+    return slot_code
 
 def get_ship_id(ship):
     ship_id = ship.replace(" ", "_").lower()
     return ship_id
 
+# GETS SHIP NAME FROM CODE
+def get_ship_from_code(code):
+    for key, value in data.PIECES.items():
+        if value.get("code") == code:
+            return key
+    return None
 
-def save_board(user_id, board):
-    print("Saving board to DynamoDB")
+# GENERATES A RANDOM SQUARE TO PLACE A PIECE OR FOR COMPUTER ATTACK
+def get_random_square():
+    square = [randrange(10), randrange(10)]
+    return square
 
-    table = dynamodb.Table(os.environ[CURRENT_GAMES_TABLE])
-    item = {
-        'id': user_id,
-        'user_board': board,
-        'opponent_board': board
-    }
-    
-    response = table.put_item(Item=item)
+# GETS A RANDOM ORIENTATION (HORIZONTAL = 0 AND VERTICAL = 1) TO PLACE A PIECE
+def get_random_orientation():
+    return randrange(2)
 
-    return response
 
+# CALCULATES RANDOM PIECE END POSITION BASED ON ITS SIZE, THE START POSITION AND THE ORIENTATION
+def get_random_end(size, start, orientation):
+    return [start[0] if orientation == 0 else start[0] + size - 1, start[1] if orientation == 1 else start[1] + size - 1]
+
+
+# RANDOMLY CONFIGURES THE COMPUTERS BOARD
+def get_random_board():
+    board = clear_board()
+    for ship, info in data.PIECES.items():
+        print("Randomly placing " + ship)
+        successful_random_placement = False
+        while not successful_random_placement:
+            random_start = get_random_square()
+            print("Random start: " + str(random_start))
+            random_orientation = get_random_orientation()
+            print("Random orientation: " + str(random_orientation))
+            random_end = get_random_end(info.get("size"), random_start, random_orientation)
+            print("Random end: " + str(random_end))
+            random_placement = place_piece(board, ship, random_start, random_end)
+            successful_random_placement = random_placement.get("is_legal")
+        print(ship + " randomly placed successfully")
+
+    return board
+
+
+def attack_square(square, board):
+    print("Attempting attack to square " + str(square) + " in board " + str(board))
+    target_square = board[square[0]][square[1]]
+    if target_square == data.EMPTY_CODE:
+        board[square[0]][square[1]] = data.MISS_CODE
+        return {"is_legal": True, "hit": False, "msg": data.MISS_MSG + data.ATTACK_SQUARE + get_slot_code(square) + ". ", "board": board}
+    elif target_square == data.MISS_CODE:
+        return {"is_legal": False, "hit": False, "msg": data.REPEAT_ATTACK_SQUARE_MSG, "board": board}
+    elif target_square % 10 == data.HIT_CODE:
+        return {"is_legal": False, "hit": False, "msg": data.REPEAT_ATTACK_SQUARE_MSG, "board": board}
+    else:
+        # TODO CHECK IF SHIP SUNK
+        hit_ship_name = get_ship_from_code(board[square[0]][square[1]])
+        board[square[0]][square[1]] += data.HIT_CODE
+        return {"is_legal": True, "hit": True, "msg": data.HIT_MSG + hit_ship_name + data.ATTACK_SQUARE + get_slot_code(square) + "! ", "board": board}
+
+
+def opponent_attack_square(board):
+    valid_attack = False
+    while not valid_attack:
+        target_square = get_random_square()
+        opponent_attack = attack_square(target_square, board)
+        valid_attack = opponent_attack.get("is_legal")
+
+    return opponent_attack

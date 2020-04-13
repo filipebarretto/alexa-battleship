@@ -130,7 +130,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "853202365172-alexa-battleship-dev",
-                "S3Key": "serverless/alexa-battleship/dev/1586640547887-2020-04-11T21:29:07.887Z/alexa_battleship_handler.zip"
+                "S3Key": "serverless/alexa-battleship/dev/1586746030125-2020-04-13T02:47:10.125Z/alexa_battleship_handler.zip"
               },
               "FunctionName": "alexa-battleship-dev-alexa_battleship_handler",
               "Handler": "src/alexa_battleship_handler.lambda_handler",
@@ -147,7 +147,8 @@
               "Environment": {
                 "Variables": {
                   "ENV": "environment",
-                  "CURRENT_GAMES_TABLE": "853202365172-alexa-battleship-dev-current-games"
+                  "CURRENT_GAMES_TABLE": "853202365172-alexa-battleship-dev-current-games",
+                  "BOARD_IMAGES_BUCKET": "853202365172-alexa-battleship-dev-board-images"
                 }
               }
             },
@@ -156,14 +157,14 @@
               "AlexaUnderscorebattleshipUnderscorehandlerLogGroup"
             ]
           },
-          "AlexaUnderscorebattleshipUnderscorehandlerLambdaVersion5aL4bcIufhzgVYknbHcbyFI7Fp4ieD2mZNGB4Byw": {
+          "AlexaUnderscorebattleshipUnderscorehandlerLambdaVersionJYMaWtPp2SfovvIr0BvIeh7TUMqOjqFnLGssGakv4s": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "AlexaUnderscorebattleshipUnderscorehandlerLambdaFunction"
               },
-              "CodeSha256": "xPvn0HCkHVpTGtyHWwwjddMbyjF1hvD0aT/aHf7GWqQ=",
+              "CodeSha256": "4qgPBcQpAoHC25wEz+WSr8nGspC0x1qDV+/vjG5NdWI=",
               "Description": "Controls Alexa battleship handler"
             }
           },
@@ -255,6 +256,25 @@
                           "dynamodb:DeleteItem"
                         ],
                         "Resource": "arn:aws:dynamodb:us-east-1:*:table/853202365172-alexa-battleship-dev-current-games"
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "s3:PutObject",
+                          "s3:GetObject",
+                          "s3:GetObjectVersion",
+                          "s3:ListBucket"
+                        ],
+                        "Resource": {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:aws:s3:::",
+                              "853202365172-alexa-battleship-dev-board-images",
+                              "/*"
+                            ]
+                          ]
+                        }
                       }
                     ]
                   }
@@ -263,6 +283,12 @@
               "Path": "/",
               "RoleName": "alexa-battleship-handler-role-dev",
               "ManagedPolicyArns": []
+            }
+          },
+          "BoardImagesBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketName": "853202365172-alexa-battleship-dev-board-images"
             }
           },
           "TodosDynamoDbTable": {
@@ -296,7 +322,7 @@
           "AlexaUnderscorebattleshipUnderscorehandlerLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "AlexaUnderscorebattleshipUnderscorehandlerLambdaVersion5aL4bcIufhzgVYknbHcbyFI7Fp4ieD2mZNGB4Byw"
+              "Ref": "AlexaUnderscorebattleshipUnderscorehandlerLambdaVersionJYMaWtPp2SfovvIr0BvIeh7TUMqOjqFnLGssGakv4s"
             }
           }
         }
@@ -312,6 +338,7 @@
       "user_name": "filipebarretto",
       "deployment_bucket": "853202365172-alexa-battleship-dev",
       "current_games_table": "853202365172-alexa-battleship-dev-current-games",
+      "board_images_bucket": "853202365172-alexa-battleship-dev-board-images",
       "account_id": "853202365172"
     },
     "plugins": [
@@ -334,7 +361,8 @@
         "timeout": 15,
         "environment": {
           "ENV": "environment",
-          "CURRENT_GAMES_TABLE": "853202365172-alexa-battleship-dev-current-games"
+          "CURRENT_GAMES_TABLE": "853202365172-alexa-battleship-dev-current-games",
+          "BOARD_IMAGES_BUCKET": "853202365172-alexa-battleship-dev-board-images"
         },
         "iamRoleStatementsName": "alexa-battleship-handler-role-dev",
         "iamRoleStatements": [
@@ -346,6 +374,9 @@
           },
           {
             "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AlexaUnderscorebattleshipUnderscorehandlerIamRoleLambdaExecution\"][\"Properties\"][\"Policies\"][0][\"PolicyDocument\"][\"Statement\"][3]"
+          },
+          {
+            "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AlexaUnderscorebattleshipUnderscorehandlerIamRoleLambdaExecution\"][\"Properties\"][\"Policies\"][0][\"PolicyDocument\"][\"Statement\"][4]"
           }
         ],
         "name": "alexa-battleship-dev-alexa_battleship_handler",
@@ -361,6 +392,12 @@
     "resources": {
       "Description": "SNS Topics CloudFormation template generated by serverless framework",
       "Resources": {
+        "BoardImagesBucket": {
+          "Type": "AWS::S3::Bucket",
+          "Properties": {
+            "BucketName": "853202365172-alexa-battleship-dev-board-images"
+          }
+        },
         "TodosDynamoDbTable": {
           "Type": "AWS::DynamoDB::Table",
           "DeletionPolicy": "Retain",
@@ -392,7 +429,7 @@
   },
   "package": {
     "individually": true,
-    "artifactDirectoryName": "serverless/alexa-battleship/dev/1586640547887-2020-04-11T21:29:07.887Z",
+    "artifactDirectoryName": "serverless/alexa-battleship/dev/1586746030125-2020-04-13T02:47:10.125Z",
     "artifact": ""
   }
 }

@@ -20,7 +20,7 @@ ImageInstance, Image, RenderTemplateDirective, ListTemplate1,
 BackButtonBehavior, ListItem, BodyTemplate2, BodyTemplate1)
 from ask_sdk_model import ui, Response
 
-from custom_modules import data, util
+from custom_modules import data, util, dbcontroller, drawboard
     
 
 # Skill Builder object
@@ -32,8 +32,10 @@ logger.setLevel(logging.INFO)
 #iot = boto3.client('iot-data', region_name='us-east-1')
 dynamodb = boto3.client('dynamodb', region_name='us-east-1')
 
+STATE_LAUNCH = "launch_state"
+STATE_NEW_GAME = "new_game"
 STATE_SETTING_UP_BOARD = "setting_up_board"
-PLAY_GAME = "play_game"
+STATE_PLAY_GAME = "play_game"
 
 
 # Request Handler classes
@@ -46,8 +48,25 @@ class LaunchRequestHandler(AbstractRequestHandler):
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
         logger.info("In LaunchRequestHandler")
-        handler_input.response_builder.speak(data.WELCOME_MESSAGE).ask(data.HELP_MESSAGE)
-        return handler_input.response_builder.response
+        
+        user_id = handler_input.request_envelope.session.user.user_id
+        response_builder = handler_input.response_builder
+        
+        empty_board = util.clear_board()
+        
+        rsp = data.WELCOME_MESSAGE
+        
+        r = drawboard.draw_board_with_ships(user_id, empty_board, "user")
+        print(r)
+        
+        user_board_image = dbcontroller.get_board_img(user_id, "user")
+        response_builder.set_card(ui.StandardCard(
+                                                  title = "Battleship",
+                                                  text = rsp,
+                                                  image = ui.Image(small_image_url = user_board_image, large_image_url = user_board_image)))
+            
+        response_builder.speak(rsp).ask(rsp)
+        return response_builder.response
 
 
 class SessionEndedRequestHandler(AbstractRequestHandler):
@@ -96,26 +115,6 @@ class ExitIntentHandler(AbstractRequestHandler):
 
 
 
-
-#class SampleHandler(AbstractRequestHandler):
-#
-#    def can_handle(self, handler_input):
-#        return (is_intent_name("intent_name")(handler_input))
-#
-#    def handle(self, handler_input):
-#        # type: (HandlerInput) -> Response
-#        logger.info("In SampleHandler")
-#        attr = handler_input.attributes_manager.session_attributes
-#
-#        rsp = random.choice(data.SAMPLE_RESPONSE)
-#
-#        response_builder = handler_input.response_builder
-#        response_builder.speak(rsp)
-#        response_builder.ask(rsp)
-#
-#        return response_builder.response
-
-
 class ListShipsHandler(AbstractRequestHandler):
     
     def can_handle(self, handler_input):
@@ -152,14 +151,24 @@ class SetupBoardHandler(AbstractRequestHandler):
 
         attr["board"] = util.clear_board()
         attr["state"] = STATE_SETTING_UP_BOARD
-        attr["setup_board_ship_code"] = util.PIECES["patrol_boat"]["code"]
+        attr["setup_board_ship_code"] = data.PIECES["patrol_boat"]["code"]
         attr["setup_board_ship_count"] = 0
         
-        rsp = random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[0] + "?"
-
+        user_id = handler_input.request_envelope.session.user.user_id
         response_builder = handler_input.response_builder
-        response_builder.speak(rsp)
-        response_builder.ask(rsp)
+        
+        rsp = random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[0] + ", " + random.choice(data.PLACE_PIECE_SIZE) + str(data.PIECES[util.get_ship_id(data.SHIPS[0])]["size"]) + "?"
+
+        r = drawboard.draw_board_with_ships(user_id, attr["board"], "user")
+        print(r)
+        
+        user_board_image = dbcontroller.get_board_img(user_id, "user")
+        response_builder.set_card(ui.StandardCard(
+                                                  title = data.SHIPS[0].title(),
+                                                  text = rsp,
+                                                  image = ui.Image(small_image_url = user_board_image, large_image_url = user_board_image)))
+    
+        response_builder.speak(rsp).ask(rsp)
 
         return response_builder.response
 
@@ -171,7 +180,7 @@ class PlacePieceHandler(AbstractRequestHandler):
         attr = handler_input.attributes_manager.session_attributes
         state = attr.get("state")
         setup_ship_count = attr.get("setup_board_ship_count", 0)
-        return (is_intent_name("place_piece")(handler_input) and state == STATE_SETTING_UP_BOARD and setup_ship_count < len(util.PIECES.keys()))
+        return (is_intent_name("place_piece")(handler_input) and state == STATE_SETTING_UP_BOARD and setup_ship_count < len(data.PIECES.keys()))
     
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
@@ -202,54 +211,150 @@ class PlacePieceHandler(AbstractRequestHandler):
         print(placement["board"])
         
         response_builder = handler_input.response_builder
+        user_id = handler_input.request_envelope.session.user.user_id
+        
         if placement["is_legal"]:
             attr["board"] = placement["board"]
             setup_ship_count += 1
             
-            
-            if setup_ship_count < len(util.PIECES.keys()):
-                attr["setup_board_ship_code"] = util.PIECES[util.get_ship_id(data.SHIPS[setup_ship_count])]["code"]
+            if setup_ship_count < len(data.PIECES.keys()):
+                attr["setup_board_ship_code"] = data.PIECES[util.get_ship_id(data.SHIPS[setup_ship_count])]["code"]
                 attr["setup_board_ship_count"] = setup_ship_count
-                rsp = random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[setup_ship_count] + "?"
+                
+                rsp = random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[setup_ship_count] + ", " + random.choice(data.PLACE_PIECE_SIZE) + str(data.PIECES[util.get_ship_id(data.SHIPS[setup_ship_count])]["size"]) + "?"
+                
+                r = drawboard.draw_board_with_ships(user_id, placement["board"], "user")
+                print(r)
+                
+                user_board_image = dbcontroller.get_board_img(user_id, "user")
+                response_builder.set_card(ui.StandardCard(
+                                                          title = data.SHIPS[setup_ship_count].title(),
+                                                          text = rsp,
+                                                          image = ui.Image(small_image_url = user_board_image, large_image_url = user_board_image)))
+                                                          
                 response_builder.speak(rsp).ask(rsp)
                 return response_builder.response
             else:
-                attr["state"] = PLAY_GAME
-                user_id = handler_input.request_envelope.session.user.user_id
-                response = util.save_board(user_id, placement["board"])
+                attr["state"] = STATE_PLAY_GAME
+                attr["setup_board_ship_code"] = None
+                attr["setup_board_ship_count"] = 0
+                
+                response = dbcontroller.save_board(user_id, placement["board"], util.get_random_board(), 0, 0)
                 print(response)
+                
+                r = drawboard.draw_board_with_ships(user_id, placement["board"], "user")
+                print(r)
+                
+                board_image = dbcontroller.get_board_img(user_id, "user")
+                response_builder.set_card(ui.StandardCard(
+                                                          title = "Battleship",
+                                                          text = "Board ready to start the game.",
+                                                          image = ui.Image(small_image_url = board_image, large_image_url = board_image)))
+                
                 rsp = random.choice(data.BOARD_READY) + random.choice(data.ATTACK)
                 response_builder.speak(rsp).ask(rsp)
                 return response_builder.response
                 
         else:
-            rsp = random.choice(data.ILLEGAL_PLACEMENT) + placement.get("msg", data.UNEXPECTED_ERROR) + random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[0] + "?"
+            rsp = random.choice(data.ILLEGAL_PLACEMENT) + placement.get("msg", data.UNEXPECTED_ERROR) + random.choice(data.PLACE_PIECE_RESPONSE) + data.SHIPS[setup_ship_count] + "?"
+
+            r = drawboard.draw_board_with_ships(user_id, placement["board"], "user")
+            print(r)
+
+            user_board_image = dbcontroller.get_board_img(user_id, "user")
+            response_builder.set_card(ui.StandardCard(
+                                                      title = data.SHIPS[setup_ship_count].title(),
+                                                      text = rsp,
+                                                      image = ui.Image(small_image_url = user_board_image, large_image_url = user_board_image)))
+
             response_builder.speak(rsp).ask(rsp)
             return response_builder.response
 
-
+# TODO RESUME GAME
 
 class PlayerTurnHandler(AbstractRequestHandler):
 
     def can_handle(self, handler_input):
         attr = handler_input.attributes_manager.session_attributes
         state = attr.get("state")
-        return (is_intent_name("player_turn")(handler_input) and state == PLAY_GAME)
+        return (is_intent_name("player_turn")(handler_input) and state == STATE_PLAY_GAME)
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
         logger.info("In PlayerTurnHandler")
         attr = handler_input.attributes_manager.session_attributes
-        
-        attack_square = util.get_square(slots["attack_square"].resolutions.resolutions_per_authority[0].values[0].value.id)
-
-        rsp = random.choice(data.SAMPLE_RESPONSE)
-
         response_builder = handler_input.response_builder
-        response_builder.speak(rsp)
-        response_builder.ask(rsp)
+        
+        slots = handler_input.request_envelope.request.intent.slots
+        print(slots)
+        user_target_slot = slots["target_square"].resolutions.resolutions_per_authority[0].values[0].value.id
+        print("user_target_slot_id: " + str(user_target_slot))
 
-        return response_builder.response
+        user_target_square = util.get_square(user_target_slot)
+        print("user_target_square: " + str(user_target_square))
+        
+        # TODO GET BOARD FROM DYNAMODB
+        # board = attr.get("board")
+        user_id = handler_input.request_envelope.session.user.user_id
+        current_game = dbcontroller.load_board(user_id)
+        print(current_game)
+        user_board = current_game.get("user_board")
+        print("user_board: ")
+        print(user_board)
+        print("opponent_board: ")
+        opponent_board = current_game.get("opponent_board")
+        print(opponent_board)
+        
+        
+        user_hits = current_game.get("user_hits")
+        opponent_hits = current_game.get("opponent_hits")
+        
+
+        user_attack = util.attack_square(user_target_square, opponent_board)
+        user_id = handler_input.request_envelope.session.user.user_id
+        
+        # TODO: CHECK IF PLAYERS HAVE WON
+        if user_attack.get("is_legal"):
+            
+            user_hits += 1 if user_attack.get("hit") else 0
+            
+            # OPPONENTS ATTACK
+            opponent_attack = util.opponent_attack_square(user_board)
+            opponent_hits += 1 if user_attack.get("hit") else 0
+            
+            response = dbcontroller.save_board(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
+            print(response)
+
+            r = drawboard.draw_board_without_ships(user_id, user_attack.get("board"), "opponent")
+            print(r)
+            
+            rsp = data.YOU + user_attack.get("msg") + data.OPPONENT + opponent_attack.get("msg") + random.choice(data.ATTACK)
+            
+            opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
+            response_builder.set_card(ui.StandardCard(
+                                                      title = "Battleship",
+                                                      text = rsp,
+                                                      image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
+            
+            
+            response_builder.speak(rsp).ask(rsp)
+            return response_builder.response
+        else:
+            
+            r = drawboard.draw_board_without_ships(user_id, user_attack.get("board"), "opponent")
+            print(r)
+            
+            rsp = user_attack.get("msg") + random.choice(data.ATTACK)
+            
+            opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
+            response_builder.set_card(ui.StandardCard(
+                                                      title = "Battleship",
+                                                      text = rsp,
+                                                      image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
+                                                      
+            response_builder.speak(rsp).ask(rsp)
+            return response_builder.response
+        
 
 class RepeatHandler(AbstractRequestHandler):
     """Handler for repeating the response to the user."""
@@ -355,7 +460,7 @@ sb.add_request_handler(FallbackIntentHandler())
 sb.add_request_handler(ListShipsHandler())
 sb.add_request_handler(SetupBoardHandler())
 sb.add_request_handler(PlacePieceHandler())
-
+sb.add_request_handler(PlayerTurnHandler())
 
 # Add exception handler to the skill.
 sb.add_exception_handler(CatchAllExceptionHandler())
