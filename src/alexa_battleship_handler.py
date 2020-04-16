@@ -185,6 +185,10 @@ class ResumeGameHandler(AbstractRequestHandler):
         logger.info("In ResumeGameHandler")
         attr = handler_input.attributes_manager.session_attributes
         
+        attr["state"] = STATE_PLAY_GAME
+        attr["setup_board_ship_code"] = None
+        attr["setup_board_ship_count"] = 0
+        
         # LOADS CURRENT GAME FROM DYNAMODB
         user_id = handler_input.request_envelope.session.user.user_id
         current_game = dbcontroller.load_current_game(user_id)
@@ -216,7 +220,7 @@ class ResumeGameHandler(AbstractRequestHandler):
             
       response_builder.speak(rsp).ask(rsp)
       return response_builder.response
-    
+
 
 # TODO QUIT GAME
 
@@ -367,10 +371,52 @@ class PlayGameHandler(AbstractRequestHandler):
         if user_attack.get("is_legal"):
             
             user_hits += 1 if user_attack.get("hit") else 0
+            if user_hits == data.MAX_HITS:
+                print("User won the game")
             
+                response = dbcontroller.save_current_game(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
+                print(response)
+                
+                r = drawboard.draw_board_with_ships(user_id, user_attack.get("board"), "opponent")
+                print(r)
+        
+                rsp = data.USER_WON_GAME
+                
+                opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
+                response_builder.set_card(ui.StandardCard(
+                                                      title = "Battleship",
+                                                      text = rsp,
+                                                      image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
+                
+                
+                response_builder.speak(rsp)
+                return response_builder.response
+                        
             # OPPONENTS ATTACK
             opponent_attack = util.opponent_attack_square(user_board)
-            opponent_hits += 1 if user_attack.get("hit") else 0
+            opponent_hits += 1 if else opponent_attack.get("hit")
+            if opponent_hits == data.MAX_HITS:
+                print("Opponent won the game")
+                
+                response = dbcontroller.save_current_game(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
+                print(response)
+                
+                r = drawboard.draw_board_with_ships(user_id, user_attack.get("board"), "opponent")
+                print(r)
+                
+                rsp = data.OPPONENT_WON_GAME
+                
+                opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
+                response_builder.set_card(ui.StandardCard(
+                                                          title = "Battleship",
+                                                          text = rsp,
+                                                          image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
+                    
+                    
+                response_builder.speak(rsp)
+                return response_builder.response
+
+            
             
             response = dbcontroller.save_current_game(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
             print(response)
@@ -379,16 +425,17 @@ class PlayGameHandler(AbstractRequestHandler):
             print(r)
             
             rsp = data.YOU + user_attack.get("msg") + data.OPPONENT + opponent_attack.get("msg") + random.choice(data.ATTACK)
-            
+
             opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
             response_builder.set_card(ui.StandardCard(
                                                       title = "Battleship",
                                                       text = rsp,
                                                       image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
-            
-            
+
+
             response_builder.speak(rsp).ask(rsp)
             return response_builder.response
+                
         else:
             
             r = drawboard.draw_board_without_ships(user_id, user_attack.get("board"), "opponent")

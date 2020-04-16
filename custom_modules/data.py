@@ -35,9 +35,13 @@ BOARD_SQUARE_CONFLICT = "There is already a piece in one of these squares.. "
 MISS_MSG = "missed "
 REPEAT_ATTACK_SQUARE_MSG = "You already attacked this square. "
 HIT_MSG = "hit a ship "
+SUNK_MSG = "sunk the "
 ATTACK_SQUARE = "in square "
 YOU = "You "
 OPPONENT = "Your opponent "
+
+USER_WON_GAME = "Congratulations! You won the game!"
+OPPONENT_WON_GAME = "Too bad! Your opponent won the game!"
 
 WELCOME_MESSAGE = ("Welcome to Battleship! Let's play a game.  ")
 HELP_MESSAGE = ("What would you like to do? ")

@@ -97,6 +97,13 @@ def get_ship_id(ship):
 def get_ship_from_code(code):
     for key, value in data.PIECES.items():
         if value.get("code") == code:
+            return value
+    return None
+
+# GETS SHIP NAME FROM CODE
+def get_ship_name_from_code(code):
+    for key, value in data.PIECES.items():
+        if value.get("code") == code:
             return key
     return None
 
@@ -135,6 +142,19 @@ def get_random_board():
     return board
 
 
+# TODO: OPTIMIZE SEARCH FOR HIT SQUARES
+def check_if_ship_sunk(board, ship):
+    ship_size = ship.get("size")
+    ship_code = ship.get("code")
+    ship_hit_count = 0
+    for x in range(data.BOARD_WIDTH):
+        for y in range(data.BOARD_HEIGHT):
+            ship_hit_count += 1 if board[x][y] == ship_code + data.HIT_CODE else 0
+
+    return ship_size == ship_hit_count
+
+
+
 def attack_square(square, board):
     print("Attempting attack to square " + str(square) + " in board " + str(board))
     target_square = board[square[0]][square[1]]
@@ -147,9 +167,16 @@ def attack_square(square, board):
         return {"is_legal": False, "hit": False, "msg": data.REPEAT_ATTACK_SQUARE_MSG, "board": board}
     else:
         # TODO CHECK IF SHIP SUNK
-        hit_ship_name = get_ship_from_code(board[square[0]][square[1]])
+        hit_ship_code = target_square
+        hit_ship = get_ship_from_code(hit_ship_code)
+        hit_ship_name = get_ship_name_from_code(hit_ship_code)
         board[square[0]][square[1]] += data.HIT_CODE
-        return {"is_legal": True, "hit": True, "msg": data.HIT_MSG + hit_ship_name + data.ATTACK_SQUARE + get_slot_code(square) + "! ", "board": board}
+        
+        ship_sunk = check_if_ship_sunk(board, hit_ship)
+        
+        msg = data.SUNK_MSG + hit_ship_name + " " + data.ATTACK_SQUARE + get_slot_code(square) + "! " if ship_sunk else data.HIT_MSG + data.ATTACK_SQUARE + get_slot_code(square) + "! "
+        
+        return {"is_legal": True, "hit": True, "msg": msg, "board": board, "ship_sunk": ship_sunk, "ship": hit_ship, "ship_name": hit_ship_name}
 
 
 def opponent_attack_square(board):
