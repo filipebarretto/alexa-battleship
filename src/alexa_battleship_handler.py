@@ -34,6 +34,7 @@ dynamodb = boto3.client('dynamodb', region_name='us-east-1')
 
 STATE_LAUNCH = "launch_state"
 STATE_NEW_GAME = "new_game"
+STATE_RESUME_GAME = "resume_game"
 STATE_SETTING_UP_BOARD = "setting_up_board"
 STATE_PLAY_GAME = "play_game"
 
@@ -139,14 +140,14 @@ class ListShipsHandler(AbstractRequestHandler):
 
 
 
-class SetupBoardHandler(AbstractRequestHandler):
+class NewGameHandler(AbstractRequestHandler):
 
     def can_handle(self, handler_input):
         return (is_intent_name("setup_board")(handler_input))
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        logger.info("In SetupBoardHandler")
+        logger.info("In NewGameHandler")
         attr = handler_input.attributes_manager.session_attributes
 
         attr["board"] = util.clear_board()
@@ -173,8 +174,59 @@ class SetupBoardHandler(AbstractRequestHandler):
         return response_builder.response
 
 
+
+class ResumeGameHandler(AbstractRequestHandler):
+    
+    def can_handle(self, handler_input):
+        return (is_intent_name("resume_game")(handler_input))
+    
+    def handle(self, handler_input):
+        # type: (HandlerInput) -> Response
+        logger.info("In ResumeGameHandler")
+        attr = handler_input.attributes_manager.session_attributes
+        
+        # LOADS CURRENT GAME FROM DYNAMODB
+        user_id = handler_input.request_envelope.session.user.user_id
+        current_game = dbcontroller.load_current_game(user_id)
+        print(current_game)
+
+        # TODO: CHECK IF THERE IS AN ACTIVE GAME
+        user_board = current_game.get("user_board")
+        print("user_board: ")
+        print(user_board)
+
+        opponent_board = current_game.get("opponent_board")
+        print("opponent_board: ")
+        print(opponent_board)
+        
+        user_id = handler_input.request_envelope.session.user.user_id
+        response_builder = handler_input.response_builder
+        
+        r = drawboard.draw_board_without_ships(user_id, opponent_board, "opponent")
+        print(r)
+        
+        rsp = random.choice(data.ATTACK)
+            
+        opponent_board_image = dbcontroller.get_board_img(user_id, "opponent")
+        response_builder.set_card(ui.StandardCard(
+                                                  title = "Battleship",
+                                                  text = rsp,
+                                                  image = ui.Image(small_image_url = opponent_board_image, large_image_url = opponent_board_image)))
+            
+            
+      response_builder.speak(rsp).ask(rsp)
+      return response_builder.response
+    
+
+# TODO QUIT GAME
+
+# TODO OVERALL SCORE
+
+# TODO RESET OVERALL SCORE
+
+
 # PLACES PIECE IN BOARD TO SETUP GAME
-class PlacePieceHandler(AbstractRequestHandler):
+class SetupBoardHandler(AbstractRequestHandler):
     
     def can_handle(self, handler_input):
         attr = handler_input.attributes_manager.session_attributes
@@ -184,7 +236,7 @@ class PlacePieceHandler(AbstractRequestHandler):
     
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        logger.info("In PlacePieceHandler")
+        logger.info("In SetupBoardHandler")
         attr = handler_input.attributes_manager.session_attributes
 
         setup_ship_code = attr.get("setup_board_ship_code")
@@ -239,7 +291,7 @@ class PlacePieceHandler(AbstractRequestHandler):
                 attr["setup_board_ship_code"] = None
                 attr["setup_board_ship_count"] = 0
                 
-                response = dbcontroller.save_board(user_id, placement["board"], util.get_random_board(), 0, 0)
+                response = dbcontroller.save_current_game(user_id, placement["board"], util.get_random_board(), 0, 0)
                 print(response)
                 
                 r = drawboard.draw_board_with_ships(user_id, placement["board"], "user")
@@ -270,9 +322,8 @@ class PlacePieceHandler(AbstractRequestHandler):
             response_builder.speak(rsp).ask(rsp)
             return response_builder.response
 
-# TODO RESUME GAME
 
-class PlayerTurnHandler(AbstractRequestHandler):
+class PlayGameHandler(AbstractRequestHandler):
 
     def can_handle(self, handler_input):
         attr = handler_input.attributes_manager.session_attributes
@@ -281,7 +332,7 @@ class PlayerTurnHandler(AbstractRequestHandler):
 
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
-        logger.info("In PlayerTurnHandler")
+        logger.info("In PlayGameHandler")
         attr = handler_input.attributes_manager.session_attributes
         response_builder = handler_input.response_builder
         
@@ -293,10 +344,9 @@ class PlayerTurnHandler(AbstractRequestHandler):
         user_target_square = util.get_square(user_target_slot)
         print("user_target_square: " + str(user_target_square))
         
-        # TODO GET BOARD FROM DYNAMODB
-        # board = attr.get("board")
+        # LOADS BOARD FROM DYNAMODB
         user_id = handler_input.request_envelope.session.user.user_id
-        current_game = dbcontroller.load_board(user_id)
+        current_game = dbcontroller.load_current_game(user_id)
         print(current_game)
         user_board = current_game.get("user_board")
         print("user_board: ")
@@ -322,7 +372,7 @@ class PlayerTurnHandler(AbstractRequestHandler):
             opponent_attack = util.opponent_attack_square(user_board)
             opponent_hits += 1 if user_attack.get("hit") else 0
             
-            response = dbcontroller.save_board(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
+            response = dbcontroller.save_current_game(user_id, opponent_attack.get("board"), user_attack.get("board"), user_hits, opponent_hits)
             print(response)
 
             r = drawboard.draw_board_without_ships(user_id, user_attack.get("board"), "opponent")
@@ -458,9 +508,9 @@ sb.add_request_handler(FallbackIntentHandler())
 
 # Add all request handlers to the skill.
 sb.add_request_handler(ListShipsHandler())
+sb.add_request_handler(NewGameHandler())
 sb.add_request_handler(SetupBoardHandler())
-sb.add_request_handler(PlacePieceHandler())
-sb.add_request_handler(PlayerTurnHandler())
+sb.add_request_handler(PlayGameHandler())
 
 # Add exception handler to the skill.
 sb.add_exception_handler(CatchAllExceptionHandler())

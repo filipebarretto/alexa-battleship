@@ -21,8 +21,8 @@ def convert_board(board):
     return new_board
 
 
-# SAVES THE BOARD TO DYNAMODB
-def save_board(user_id, user_board, opponent_board, user_hits, opponent_hits):
+# SAVES CURRENT GAME TO DYNAMODB
+def save_current_game(user_id, user_board, opponent_board, user_hits, opponent_hits):
     print("Saving board to DynamoDB")
     
     table = dynamodb.Table(os.environ[data.CURRENT_GAMES_TABLE])
@@ -38,9 +38,27 @@ def save_board(user_id, user_board, opponent_board, user_hits, opponent_hits):
 
     return response
 
+# SAVES FINISHED GAME TO DYNAMODB
+def save_finished_game(user_id, user_board, opponent_board, user_hits, opponent_hits):
+    print("Saving board to DynamoDB")
+    
+    # TODO: GET CURRENT TIME TO FINISH GAME
+    table = dynamodb.Table(os.environ[data.CURRENT_GAMES_TABLE])
+    item = {
+        'id': user_id,
+        'user_board': user_board,
+        'opponent_board': opponent_board,
+        'user_hits': user_hits,
+        'opponent_hits': opponent_hits,
+        'finished': True
+    }
+    
+    response = table.put_item(Item=item)
+
+return response
 
 
-def load_board(user_id):
+def load_current_game(user_id):
     print("Loading board from DynamoDB")
     table = dynamodb.Table(os.environ[data.CURRENT_GAMES_TABLE])
     
